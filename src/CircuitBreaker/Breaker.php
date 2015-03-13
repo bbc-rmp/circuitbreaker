@@ -36,6 +36,9 @@ class Breaker
     protected $failureKey;
     protected $lastFailureTimeKey;
     protected $logger;
+    protected $onChange;
+    const OPEN_TO_CLOSED = "Open To Closed";
+    const CLOSED_TO_OPEN = "Closed To Open";
 
     /**
      * Construct a new Breaker instance.
@@ -69,6 +72,10 @@ class Breaker
 
         if (isset($params['retry']) && is_bool($params['retry'])) {
             $this->willRetry = $params['retry'];
+        }
+
+        if (isset($params['onChange']) && is_callable($params['onChange'])) {
+            $this->onChange = $params['onChange'];
         }
     }
 
@@ -177,6 +184,10 @@ class Breaker
 
         if ($this->breakerClosed === false) {
             $this->breakerClosed = true;
+            if (isset($this->onChange)) {
+                call_user_func_array($this->onChange, array(self::OPEN_TO_CLOSED));
+            }
+
         }
 
         $numFails = $this->persistence->get($this->failureKey);
@@ -213,6 +224,9 @@ class Breaker
             $this->log("Threshold reached, breaker opening");
             $this->breakerClosed = false;
             $this->persistence->set($this->lastFailureTimeKey, time());
+            if (isset($this->onChange)) {
+                call_user_func_array($this->onChange, array(self::CLOSED_TO_OPEN));
+            }
         }
 
         $this->persistence->set($this->failureKey, $numFails);
